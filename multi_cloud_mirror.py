@@ -63,7 +63,7 @@ def connectToClouds():
 #######################################################################
 ### Copy functions
 #######################################################################
-def copyToS3(srcBucketName, myKeyName, destBucketName,tmpFile):
+def copyToS3(srcBucketName, myKeyName, destBucketName,tmpDir):
    """
    Copy files to S3 from CF, given a source container and key, 
    and a destination bucket and temporary file for local storage
@@ -71,6 +71,7 @@ def copyToS3(srcBucketName, myKeyName, destBucketName,tmpFile):
    # because of the way S3 and boto work, we have to save to a local file first, then upload to Cloud Files
    # note that maximum file size (as of this writing) for Cloud Files is 5GB, and we expect 6+GB free on the drive
    (s3Conn, cfConn) = connectToClouds()
+   tmpFile = str(tmpDir + '/' + myKeyName)
    cfConn.get_container(srcBucketName).get_object(myKeyName).save_to_filename(tmpFile)
    destBucket = s3Conn.get_bucket(destBucketName)
    newObj = None
@@ -136,7 +137,7 @@ class MultiCloudMirror:
 
    def __init__(self, sync=None, numProcesses=4, maxFileSize=5368709120, emailDest='', emailSrc='',
                 emailSubj="[Multi-Cloud Mirror] Script Run at %s" % (str(datetime.datetime.now())),
-                tmpFile='/tmp/tmpfile', debug=0, sendmail=0, delete=0, maxFileDeletion=10, minFileSync=10):
+                tmpDir='/tmp', debug=0, sendmail=0, delete=0, maxFileDeletion=10, minFileSync=10):
       # initialize variables
       self.debug              = debug
       self.emailMsg           = ""
@@ -146,7 +147,7 @@ class MultiCloudMirror:
       self.emailSrc           = emailSrc
       self.emailSubj          = emailSubj
       self.sendmail           = sendmail
-      self.tmpFile            = tmpFile
+      self.tmpDir             = tmpDir
       self.s3Conn             = None
       self.cfConn             = None
       self.pool               = multiprocessing.Pool(numProcesses)
@@ -302,7 +303,7 @@ class MultiCloudMirror:
          if srcService == "s3":
             job = self.pool.apply_async(copyToCF, (srcBucketName, myKeyName, destBucketName))
          elif srcService == "cf":
-            job = self.pool.apply_async(copyToS3, (srcBucketName, myKeyName, destBucketName, str(self.tmpFile + str(self.jobCount))))
+            job = self.pool.apply_async(copyToS3, (srcBucketName, myKeyName, destBucketName, self.tmpDir))
          job_dict = dict(job=job, task="copy", myKeyName=myKeyName, srcService=srcService, srcBucketName=srcBucketName, destBucketName=destBucketName, destService=destService)
          self.jobs.append(job_dict)
          self.copyCount = self.copyCount + 1
@@ -433,8 +434,8 @@ if __name__ == '__main__':
                           help='email address(es) (comma-separated) to which to send the status email; must be specificed to recieve message')
       parser.add_argument('--subject', help='subject of the status email', dest='emailSubj',
                           default="[Multi-Cloud Mirror] Script Run at %s" % (str(datetime.datetime.now())))
-      parser.add_argument('--tmpfile', dest='tmpFile',
-                          help='temporary file used for writing when sending from cf to s3', default='/mnt/cloudfile')
+      parser.add_argument('--tmpdir', dest='tmpDir',
+                          help='temporary directory used for writing when sending from cf to s3', default='/tmp')
       parser.add_argument('--debug', dest='debug', default=False, help='turn on debug output')
       parser.add_argument('--delete', dest='delete', default=False, help='delete destination files that do not exist in source')
       parser.add_argument('--maxdelete', dest='maxFileDeletion',type=int, default=10, help='max number of files that can be deleted (-1 for unlimited)')
@@ -443,7 +444,7 @@ if __name__ == '__main__':
       parser.add_argument('sync', metavar='"s3://bucket->cf://container"', nargs='+',
                           help='a synchronization scenario, of the form "s3://bucket->cf://container" or "cf://container->s3://bucket"')
       args = parser.parse_args()
-      mcm = MultiCloudMirror(args.sync, args.numProcesses, args.maxFileSize, args.emailDest, args.emailSrc, args.emailSubj, args.tmpFile, args.debug, args.sendmail, args.delete, args.maxFileDeletion, args.minFileSync)
+      mcm = MultiCloudMirror(args.sync, args.numProcesses, args.maxFileSize, args.emailDest, args.emailSrc, args.emailSubj, args.tmpDir, args.debug, args.sendmail, args.delete, args.maxFileDeletion, args.minFileSync)
       mcm.run()
    except MultiCloudMirrorException as err:
       print "Error from MultiCloudMirror: %s" % (str(err))
