@@ -1,2 +1,4 @@
+boto
 boto3
 python-cloudfiles==1.7.10
+pytest
