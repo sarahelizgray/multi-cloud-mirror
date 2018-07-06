@@ -36,6 +36,8 @@ from ConfigParser import NoSectionError, NoOptionError, MissingSectionHeaderErro
 from email.mime.text import MIMEText
 from subprocess import Popen, PIPE
 
+from helpers import get_all_cloudfile_objects
+
 #######################################################################
 ### Global Functions
 #######################################################################
@@ -203,13 +205,13 @@ class MultiCloudMirror:
       self.logItem("\nScenario: %s; (from: %s in %s , to: %s in %s)" % (scenario, srcBucketName, srcService, destBucketName, destService), self.LOG_INFO)
       return(srcService, srcBucketName, destService, destBucketName, serviceError)
 
-   def get_all_objects(self, cfBucketName, cfList, marker=None):
-      objects = self.cfConn.get_container(cfBucketName).get_objects(limit=self.CF_MAX_OBJECTS_IN_LIST, marker=marker)
-      cfList.extend(objects)
-      if len(objects) == self.CF_MAX_OBJECTS_IN_LIST:
-         return self.get_all_objects(cfBucketName, cfList, cfList[-1].name)
-      else:
-         return cfList
+   # def get_all_objects(self, cfBucketName, cfList, marker=None):
+   #    objects = self.cfConn.get_container(cfBucketName).get_objects(limit=self.CF_MAX_OBJECTS_IN_LIST, marker=marker)
+   #    cfList.extend(objects)
+   #    if len(objects) == self.CF_MAX_OBJECTS_IN_LIST:
+   #       return self.get_all_objects(cfBucketName, cfList, cfList[-1].name)
+   #    else:
+   #       return cfList
 
    def connectToBuckets(self, srcService, srcBucketName, destBucketName):
       """
@@ -220,7 +222,7 @@ class MultiCloudMirror:
       cfBucketName = destBucketName if srcService == 's3' else srcBucketName
       # Because the cloudfiles.ObjectResults class can't easily be appended to, we make a new list
 
-      cfList = self.get_all_objects(cfBucketName, [])
+      cfList = get_all_cloudfile_objects(cfBucketName, [], cfConn, self.CF_MAX_OBJECTS_IN_LIST)
 
       # Now assign bucket/container lists to class lists
       if srcService == 's3':
