@@ -203,6 +203,13 @@ class MultiCloudMirror:
       self.logItem("\nScenario: %s; (from: %s in %s , to: %s in %s)" % (scenario, srcBucketName, srcService, destBucketName, destService), self.LOG_INFO)
       return(srcService, srcBucketName, destService, destBucketName, serviceError)
 
+   def get_all_objects(self, cfBucketName, cfList, marker=None):
+      objects = self.cfConn.get_container(cfBucketName).get_objects(limit=self.CF_MAX_OBJECTS_IN_LIST, marker=marker)
+      cfList.extend(objects)
+      if len(objects) == self.CF_MAX_OBJECTS_IN_LIST:
+         return self.get_all_objects(cfBucketName, cfList, cfList[-1].name)
+      else:
+         return cfList
 
    def connectToBuckets(self, srcService, srcBucketName, destBucketName):
       """
@@ -212,14 +219,9 @@ class MultiCloudMirror:
       # (to maximize code reuse)
       cfBucketName = destBucketName if srcService == 's3' else srcBucketName
       # Because the cloudfiles.ObjectResults class can't easily be appended to, we make a new list
-      cfList = []
-      cfList.extend(self.cfConn.get_container(cfBucketName).get_objects())
-      lastLen = len(cfList)
-      while lastLen == self.CF_MAX_OBJECTS_IN_LIST:
-         cfList.extend(self.cfConn.get_container(cfBucketName).get_objects(marker=cfList[-1].name))
-         lastLen = len(cfList) - lastLen
-      #misses the dregs in the bucket :( This should be recursive yo!
-      cfList.extend(self.cfConn.get_container(cfBucketName).get_objects(marker=cfList[-1].name))
+
+      cfList = self.get_all_objects(cfBucketName, [])
+
       # Now assign bucket/container lists to class lists
       if srcService == 's3':
          self.srcList        = self.s3Conn.Bucket(srcBucketName).objects.all()
@@ -388,8 +390,8 @@ class MultiCloudMirror:
    def get_non_empty_containers(self, containers, non_empty_containers_list):
       [non_empty_containers_list.append(c['name']) for c in containers if c['bytes'] != 0]
       #10000 is the default/max size for a response
-      if len(containers) == 10000:
-         next_batch_containers = self.cfConn.list_containers_info(marker=containers[-1]['name'])
+      if len(containers) == self.CF_MAX_OBJECTS_IN_LIST:
+         next_batch_containers = self.cfConn.list_containers_info(marker=containers[-1]['name'], limit=self.CF_MAX_OBJECTS_IN_LIST)
          return self.get_non_empty_containers(next_batch_containers, non_empty_containers_list)
       else:
          return non_empty_containers_list
@@ -409,44 +411,44 @@ class MultiCloudMirror:
          [srcService, srcBucketName, destService, destBucketName, serviceError] = self.getScenarioDetails(scenario)
 
          #collect all the non-empty containers
-         first_batch_containers = self.cfConn.list_containers_info()
-         non_empty_containers = self.get_non_empty_containers(first_batch_containers, [])
+         # first_batch_containers = self.cfConn.list_containers_info()
+         # non_empty_containers = self.get_non_empty_containers(first_batch_containers, [])
 
-         for srcBucketName in non_empty_containers:
+         # for srcBucketName in non_empty_containers:
 
          #override the passed bucket name and pick up all buckets from rackspace
          # reestablish connection here to avoid the timeout?
          #(self.s3Conn, self.cfConn) = connectToClouds()
-            self.logItem("transferring bucket " + srcBucketName, self.LOG_INFO)
-            if serviceError is not None:
-               self.logItem(serviceError, self.LOG_WARN)
-               continue
-            # Connect to the proper buckets and retrieve file lists
-            try:
-               self.connectToBuckets(srcService, srcBucketName, destBucketName)
-            except (S3ResponseError, S3PermissionsError), err:
-               self.logItem("Error in connecting to S3 bucket: [%d] %s" % (err.status, err.reason), self.LOG_WARN)
-               continue
-            except (ResponseError, NoSuchContainer, InvalidContainerName, InvalidUrl, ContainerNotPublic, AuthenticationFailed, AuthenticationError), err:
-               self.logItem("Error in connecting to CF container: %s" % (err), self.LOG_WARN)
-               continue
-            # Iterate through files at the source to see which ones to copy, and put them on the multiprocessing queue:
-            for sKey in self.srcList:
-               self.checkAndCopy(sKey, srcService, srcBucketName, destService, destBucketName)
+         self.logItem("transferring bucket " + srcBucketName, self.LOG_INFO)
+         if serviceError is not None:
+            self.logItem(serviceError, self.LOG_WARN)
+            continue
+         # Connect to the proper buckets and retrieve file lists
+         try:
+            self.connectToBuckets(srcService, srcBucketName, destBucketName)
+         except (S3ResponseError, S3PermissionsError), err:
+            self.logItem("Error in connecting to S3 bucket: [%d] %s" % (err.status, err.reason), self.LOG_WARN)
+            continue
+         except (ResponseError, NoSuchContainer, InvalidContainerName, InvalidUrl, ContainerNotPublic, AuthenticationFailed, AuthenticationError), err:
+            self.logItem("Error in connecting to CF container: %s" % (err), self.LOG_WARN)
+            continue
+         # Iterate through files at the source to see which ones to copy, and put them on the multiprocessing queue:
+         for sKey in self.srcList:
+            self.checkAndCopy(sKey, srcService, srcBucketName, destService, destBucketName)
 
-            # runDelete = True
-            # if (self.syncCount < self.minFileSync):
-            #    runDelete = False
-            #    self.logItem("Skipping file deletion as min number of files for sync was not reached", self.LOG_INFO)
+         # runDelete = True
+         # if (self.syncCount < self.minFileSync):
+         #    runDelete = False
+         #    self.logItem("Skipping file deletion as min number of files for sync was not reached", self.LOG_INFO)
 
-            # if runDelete:
-            #    for dKey in self.destList:
-            #       self.checkAndDelete(dKey, destService, destBucketName)
+         # if runDelete:
+         #    for dKey in self.destList:
+         #       self.checkAndDelete(dKey, destService, destBucketName)
 
-            self.waitForJobstoFinish()
-            self.logItem("\n\n%s Files were previously mirrored %s Files Copied %s Files Deleted" % (self.syncCount, self.copyCount, self.deleteCount), self.LOG_INFO)
-            self.logItem("\n\nMulti-Cloud Mirror Script ended at %s" % (str(datetime.datetime.now())), self.LOG_INFO)
-            self.sendStatusEmail()
+         self.waitForJobstoFinish()
+         self.logItem("\n\n%s Files were previously mirrored %s Files Copied %s Files Deleted" % (self.syncCount, self.copyCount, self.deleteCount), self.LOG_INFO)
+         self.logItem("\n\nMulti-Cloud Mirror Script ended at %s" % (str(datetime.datetime.now())), self.LOG_INFO)
+         self.sendStatusEmail()
 
 
 
