@@ -21,6 +21,7 @@ import boto
 import cloudfiles
 import smtplib
 import os
+import io
 import sys
 import time
 import datetime
@@ -78,11 +79,17 @@ def copyToS3(srcBucketName, myKeyName, destBucketName,tmpDir):
    #prefix bucket name with container name
    s3KeyName = srcBucketName + '/' + myKeyName
 
+   #here's where I use a stringIO
    tmpFile = str(tmpDir + '/' +  myKeyName)
-   cfConn.get_container(srcBucketName).get_object(myKeyName).save_to_filename(tmpFile)
+   file = cfConn.get_container(srcBucketName).get_object(myKeyName)
+
+   io.BytesIO(file.read())
+
+#  s3Conn.upload_fileobj(file_stream, 'jwp-promptworks-dev', '/video_9_9/' + obj.name)
 
    destBucket = s3Conn.Bucket(destBucketName)
    newObj = None
+
    try:
       newObj = s3Conn.Object(destBucketName,s3KeyName)
    except S3ResponseError:
@@ -144,7 +151,7 @@ class MultiCloudMirror:
    LOG_DEBUG=0
    CF_MAX_OBJECTS_IN_LIST=10000
 
-   def __init__(self, sync=None, numProcesses=4, maxFileSize=5368709120, emailDest='', emailSrc='',
+   def __init__(self, sync=None, numProcesses=10, maxFileSize=5368709120, emailDest='', emailSrc='',
                 emailSubj="[Multi-Cloud Mirror] Script Run at %s" % (str(datetime.datetime.now())),
                 tmpDir='/tmp', debug=0, sendmail=0, delete=0, maxFileDeletion=10, minFileSync=10):
       # initialize variables
@@ -413,11 +420,10 @@ class MultiCloudMirror:
          [srcService, srcBucketName, destService, destBucketName, serviceError] = self.getScenarioDetails(scenario)
 
          #collect all the non-empty containers
-         # first_batch_containers = self.cfConn.list_containers_info()
-         # non_empty_containers = self.get_non_empty_containers(first_batch_containers, [])
+         first_batch_containers = self.cfConn.list_containers_info()
+         non_empty_containers = self.get_non_empty_containers(first_batch_containers, [])
 
          # for srcBucketName in non_empty_containers:
-
          #override the passed bucket name and pick up all buckets from rackspace
          # reestablish connection here to avoid the timeout?
          #(self.s3Conn, self.cfConn) = connectToClouds()
