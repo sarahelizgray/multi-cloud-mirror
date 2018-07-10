@@ -83,9 +83,10 @@ def copyToS3(srcBucketName, myKeyName, destBucketName,tmpDir):
    tmpFile = str(tmpDir + '/' +  myKeyName)
    file = cfConn.get_container(srcBucketName).get_object(myKeyName)
 
-   io.BytesIO(file.read())
-
-#  s3Conn.upload_fileobj(file_stream, 'jwp-promptworks-dev', '/video_9_9/' + obj.name)
+   nf = io.BytesIO(file.read())
+   bucket = s3Conn.Bucket(destBucketName)
+   object_upload = bucket.Object(srcBucketName + myKeyName)
+   object_upload.upload_fileobj(nf)
 
    destBucket = s3Conn.Bucket(destBucketName)
    newObj = None
