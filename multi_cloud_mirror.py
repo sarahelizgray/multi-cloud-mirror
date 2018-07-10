@@ -221,6 +221,8 @@ class MultiCloudMirror:
       # Because the cloudfiles.ObjectResults class can't easily be appended to, we make a new list
 
       cfList = self.get_all_objects(cfBucketName, [])
+      #no swf files please
+      cfList = [obj for obj in cfList if obj.name.split('.')[-1] !='swf']
 
       # Now assign bucket/container lists to class lists
       if srcService == 's3':
