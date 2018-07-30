@@ -80,25 +80,25 @@ def copyToS3(srcBucketName, myKeyName, destBucketName,tmpDir):
    s3KeyName = srcBucketName + '/' + myKeyName
 
    #here's where I use a stringIO
-   tmpFile = str(tmpDir + '/' +  myKeyName)
+   #tmpFile = str(tmpDir + '/' +  myKeyName)
    file = cfConn.get_container(srcBucketName).get_object(myKeyName)
 
    nf = io.BytesIO(file.read())
    bucket = s3Conn.Bucket(destBucketName)
-   object_upload = bucket.Object(srcBucketName + myKeyName)
+   object_upload = bucket.Object(s3KeyName)
    object_upload.upload_fileobj(nf)
 
-   destBucket = s3Conn.Bucket(destBucketName)
-   newObj = None
+   # destBucket = s3Conn.Bucket(destBucketName)
+   # newObj = None
 
-   try:
-      newObj = s3Conn.Object(destBucketName,s3KeyName)
-   except S3ResponseError:
-      # key may exist; just get it instead:
-      # TODO make this thing work
-      newObj = destBucket.get_key(s3KeyName)
-   newObj.put(Body=open(tmpFile, 'rb'))
-   os.remove(tmpFile)
+   # try:
+   #    newObj = s3Conn.Object(destBucketName,s3KeyName)
+   # except S3ResponseError:
+   #    # key may exist; just get it instead:
+   #    # TODO make this thing work
+   #    newObj = destBucket.get_key(s3KeyName)
+   # newObj.put(Body=open(tmpFile, 'rb'))
+   # os.remove(tmpFile)
 
 
 def copyToCF(srcBucketName, myKeyName, destBucketName):
@@ -422,42 +422,42 @@ class MultiCloudMirror:
 
          #collect all the non-empty containers
          first_batch_containers = self.cfConn.list_containers_info()
-         non_empty_containers = self.get_non_empty_containers(first_batch_containers, [])
+         non_empty_containers = self.get_non_empty_containers(first_batch_containers, [])[97:]
 
-         # for srcBucketName in non_empty_containers:
+         for srcBucketName in non_empty_containers:
          #override the passed bucket name and pick up all buckets from rackspace
          # reestablish connection here to avoid the timeout?
-         #(self.s3Conn, self.cfConn) = connectToClouds()
-         self.logItem("transferring bucket " + srcBucketName, self.LOG_INFO)
-         if serviceError is not None:
-            self.logItem(serviceError, self.LOG_WARN)
-            continue
-         # Connect to the proper buckets and retrieve file lists
-         try:
-            self.connectToBuckets(srcService, srcBucketName, destBucketName)
-         except (S3ResponseError, S3PermissionsError), err:
-            self.logItem("Error in connecting to S3 bucket: [%d] %s" % (err.status, err.reason), self.LOG_WARN)
-            continue
-         except (ResponseError, NoSuchContainer, InvalidContainerName, InvalidUrl, ContainerNotPublic, AuthenticationFailed, AuthenticationError), err:
-            self.logItem("Error in connecting to CF container: %s" % (err), self.LOG_WARN)
-            continue
-         # Iterate through files at the source to see which ones to copy, and put them on the multiprocessing queue:
-         for sKey in self.srcList:
-            self.checkAndCopy(sKey, srcService, srcBucketName, destService, destBucketName)
+            (self.s3Conn, self.cfConn) = connectToClouds()
+            self.logItem("transferring bucket " + srcBucketName, self.LOG_INFO)
+            if serviceError is not None:
+               self.logItem(serviceError, self.LOG_WARN)
+               continue
+            # Connect to the proper buckets and retrieve file lists
+            try:
+               self.connectToBuckets(srcService, srcBucketName, destBucketName)
+            except (S3ResponseError, S3PermissionsError), err:
+               self.logItem("Error in connecting to S3 bucket: [%d] %s" % (err.status, err.reason), self.LOG_WARN)
+               continue
+            except (ResponseError, NoSuchContainer, InvalidContainerName, InvalidUrl, ContainerNotPublic, AuthenticationFailed, AuthenticationError), err:
+               self.logItem("Error in connecting to CF container: %s" % (err), self.LOG_WARN)
+               continue
+            # Iterate through files at the source to see which ones to copy, and put them on the multiprocessing queue:
+            for sKey in self.srcList:
+               self.checkAndCopy(sKey, srcService, srcBucketName, destService, destBucketName)
 
-         # runDelete = True
-         # if (self.syncCount < self.minFileSync):
-         #    runDelete = False
-         #    self.logItem("Skipping file deletion as min number of files for sync was not reached", self.LOG_INFO)
+            # runDelete = True
+            # if (self.syncCount < self.minFileSync):
+            #    runDelete = False
+            #    self.logItem("Skipping file deletion as min number of files for sync was not reached", self.LOG_INFO)
 
-         # if runDelete:
-         #    for dKey in self.destList:
-         #       self.checkAndDelete(dKey, destService, destBucketName)
+            # if runDelete:
+            #    for dKey in self.destList:
+            #       self.checkAndDelete(dKey, destService, destBucketName)
 
-         self.waitForJobstoFinish()
-         self.logItem("\n\n%s Files were previously mirrored %s Files Copied %s Files Deleted" % (self.syncCount, self.copyCount, self.deleteCount), self.LOG_INFO)
-         self.logItem("\n\nMulti-Cloud Mirror Script ended at %s" % (str(datetime.datetime.now())), self.LOG_INFO)
-         self.sendStatusEmail()
+            self.waitForJobstoFinish()
+            self.logItem("\n\n%s Files were previously mirrored %s Files Copied %s Files Deleted" % (self.syncCount, self.copyCount, self.deleteCount), self.LOG_INFO)
+            self.logItem("\n\nMulti-Cloud Mirror Script ended at %s" % (str(datetime.datetime.now())), self.LOG_INFO)
+            self.sendStatusEmail()
 
 
 
