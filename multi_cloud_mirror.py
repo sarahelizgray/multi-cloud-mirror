@@ -64,7 +64,7 @@ def connectToClouds():
 #######################################################################
 ### Copy functions
 #######################################################################
-def copyToS3(srcBucketName, myKeyName, destBucketName,tmpDir):
+def copyToS3(srcBucketName, myKeyName, destBucketName):
    """
    Copy files to S3 from CF, given a source container and key,
    and a destination bucket and temporary file for local storage
@@ -72,13 +72,6 @@ def copyToS3(srcBucketName, myKeyName, destBucketName,tmpDir):
    # because of the way S3 and boto work, we have to save to a local file first, then upload to Cloud Files
    # note that maximum file size (as of this writing) for Cloud Files is 5GB, and we expect 6+GB free on the drive
    (s3Conn, cfConn) = connectToClouds()
-
-
-   #prefix bucket name with container name
-   s3KeyName = srcBucketName + '/' + myKeyName
-
-   #here's where I use a stringIO
-   #tmpFile = str(tmpDir + '/' +  myKeyName)
    file = cfConn.get_container(srcBucketName).get_object(myKeyName)
 
    nf = io.BytesIO(file.read())
@@ -233,10 +226,8 @@ class MultiCloudMirror:
          # add copy job to pool
          self.jobCount += 1
          job = None
-         if srcService == "s3":
-            job = self.pool.apply_async(copyToCF, (srcBucketName, myKeyName, destBucketName))
-         elif srcService == "cf":
-            job = self.pool.apply_async(copyToS3, (srcBucketName, myKeyName, destBucketName, self.tmpDir))
+
+         job = self.pool.apply_async(copyToS3, (srcBucketName, myKeyName, destBucketName))
          job_dict = dict(job=job, task="copy", myKeyName=myKeyName, srcService=srcService, srcBucketName=srcBucketName, destBucketName=destBucketName, destService=destService)
          self.jobs.append(job_dict)
          self.copyCount = self.copyCount + 1
