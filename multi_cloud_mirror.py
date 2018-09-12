@@ -106,12 +106,8 @@ class MultiCloudMirror:
       self.destList           = []
       self.filesAtSource      = {}
       self.filesAtDestination = {}
-      self.delete             = delete
-      self.maxFileDeletion    = maxFileDeletion
-      self.minFileSync        = minFileSync
       self.syncCount          = 0
       self.copyCount          = 0
-      self.deleteCount        = 0
 
    def logItem(self, msg, level):
       """
@@ -306,9 +302,9 @@ class MultiCloudMirror:
                self.checkAndCopy(sKey, srcService, srcBucketName, destService, destBucketName)
 
             self.waitForJobstoFinish()
-            self.logItem("\n\n%s Files were previously mirrored %s Files Copied %s Files Deleted" % (self.syncCount, self.copyCount, self.deleteCount), self.LOG_INFO)
+            self.logItem("\n\n%s Files were previously mirrored %s Files Copied" % (self.syncCount, self.copyCount), self.LOG_INFO)
             self.logItem("\n\nMulti-Cloud Mirror Script ended at %s" % (str(datetime.datetime.now())), self.LOG_INFO)
-            self.sendStatusEmail()
+
 
 
 
@@ -323,14 +319,10 @@ if __name__ == '__main__':
       parser.add_argument('--maxsize', dest='maxFileSize',type=int, default=5368709120,
                           help='maximium file size to sync, in bytes (files larger than this size will be skipped)')
       parser.add_argument('--debug', dest='debug', default=False, help='turn on debug output')
-      parser.add_argument('--delete', dest='delete', default=False, help='delete destination files that do not exist in source')
-      parser.add_argument('--maxdelete', dest='maxFileDeletion',type=int, default=10, help='max number of files that can be deleted (-1 for unlimited)')
-      parser.add_argument('--minsync', dest='minFileSync',type=int, default=10, help='min number of files that are synced before delete process is allowed to run')
-      parser.add_argument('--sendmail', dest='sendmail', default=False, help='use sendmail instead of local smtp')
       parser.add_argument('sync', metavar='"s3://bucket->cf://container"', nargs='+',
                           help='a synchronization scenario, of the form "s3://bucket->cf://container" or "cf://container->s3://bucket"')
       args = parser.parse_args()
-      mcm = MultiCloudMirror(args.sync, args.numProcesses, args.maxFileSize, args.emailDest, args.emailSrc, args.emailSubj, args.tmpDir, args.debug, args.sendmail, args.delete, args.maxFileDeletion, args.minFileSync)
+      mcm = MultiCloudMirror(args.sync, args.numProcesses, args.maxFileSize, args.debug)
       mcm.run()
    except MultiCloudMirrorException as err:
       print "Error from MultiCloudMirror: %s" % (str(err))
