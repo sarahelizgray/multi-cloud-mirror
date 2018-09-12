@@ -73,26 +73,9 @@ def copyToS3(srcBucketName, myKeyName, destBucketName):
    file = cfConn.get_container(srcBucketName).get_object(myKeyName)
    nf = io.BytesIO(file.read())
    bucket = s3Conn.Bucket(destBucketName)
+   s3KeyName = srcBucketName + '/' + myKeyName
    object_upload = bucket.Object(s3KeyName)
    object_upload.upload_fileobj(nf)
-
-def copyToCF(srcBucketName, myKeyName, destBucketName):
-   """
-   Copy files to CF from S3, given a source bucket and key,
-   and a destination container
-   """
-   # we can stream from S3 to Cloud Files, saving us from having to write to disk
-   (s3Conn, cfConn) = connectToClouds()
-   srcBucket  = s3Conn.get_bucket(srcBucketName)
-   destBucket = cfConn.get_container(destBucketName)
-   #with S3, we must request the key singly to get its metadata:
-   fullKey = srcBucket.get_key(myKeyName)
-   #initialize new object at Cloud Files
-   newObj = destBucket.create_object(myKeyName)
-   newObj.content_type = fullKey.content_type or "application/octet-stream"
-   newObj.size = fullKey.size
-   #stream the file from S3 to Cloud Files
-   newObj.send(fullKey)
 
 
 #######################################################################
