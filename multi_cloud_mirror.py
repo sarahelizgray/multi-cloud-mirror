@@ -33,7 +33,6 @@ from cloudfiles.errors import (ResponseError, NoSuchContainer, InvalidContainerN
                                NoSuchObject, InvalidObjectName, InvalidMetaName, InvalidMetaValue,
                                InvalidObjectSize, IncompleteSend)
 from ConfigParser import NoSectionError, NoOptionError, MissingSectionHeaderError, ParsingError
-from email.mime.text import MIMEText
 from subprocess import Popen, PIPE
 
 #######################################################################
@@ -119,19 +118,12 @@ class MultiCloudMirror:
    LOG_DEBUG=0
    CF_MAX_OBJECTS_IN_LIST=10000
 
-   def __init__(self, sync=None, numProcesses=10, maxFileSize=5368709120, emailDest='', emailSrc='',
-                emailSubj="[Multi-Cloud Mirror] Script Run at %s" % (str(datetime.datetime.now())),
-                tmpDir='/tmp', debug=0, sendmail=0, delete=0, maxFileDeletion=10, minFileSync=10):
+   def __init__(self, sync=None, numProcesses=10, maxFileSize=5368709120,
+                 debug=0):
       # initialize variables
       self.debug              = debug
-      self.emailMsg           = ""
       self.sync               = sync
       self.maxFileSize        = maxFileSize
-      self.emailDest          = emailDest
-      self.emailSrc           = emailSrc
-      self.emailSubj          = emailSubj
-      self.sendmail           = sendmail
-      self.tmpDir             = tmpDir
       self.s3Conn             = None
       self.cfConn             = None
       self.pool               = multiprocessing.Pool(numProcesses)
@@ -292,29 +284,6 @@ class MultiCloudMirror:
          else:
             time.sleep(5)
 
-
-   def sendStatusEmail(self):
-      """
-      Send status email if we have a from and to email address
-      """
-      if (self.emailDest is not None and self.emailSrc is not None):
-          if (self.sendmail):
-
-               msg = MIMEText(self.emailMsg)
-               msg["From"] = self.emailSrc
-               msg["To"] = self.emailDest
-               msg["Subject"] = self.emailSubj
-               p = Popen(["/usr/sbin/sendmail", "-t"], stdin=PIPE)
-               p.communicate(msg.as_string())
-          else:
-               s = smtplib.SMTP('localhost')
-               s.sendmail(self.emailSrc, self.emailDest.split(','), "From: %s\nTo: %s\nSubject: %s\n\n%s" %
-                    (self.emailSrc, self.emailDest, self.emailSubj, self.emailMsg))
-               s.quit()
-
-          self.logItem("\nReport emailed to %s (from %s):\n----------------------\n%s\n----------------------\n"
-                      % (self.emailDest, self.emailSrc, self.emailMsg), self.LOG_DEBUG)
-
    def get_non_empty_containers(self, containers, non_empty_containers_list):
       """
       Returns a list of names of non-empty containers, recursively collected
@@ -382,13 +351,6 @@ if __name__ == '__main__':
                           help='number of simultaneous file upload threads to run')
       parser.add_argument('--maxsize', dest='maxFileSize',type=int, default=5368709120,
                           help='maximium file size to sync, in bytes (files larger than this size will be skipped)')
-      parser.add_argument('--from', help='email address from which to send the status email; must be specified to receive message', dest='emailSrc')
-      parser.add_argument('--to', dest='emailDest',
-                          help='email address(es) (comma-separated) to which to send the status email; must be specificed to recieve message')
-      parser.add_argument('--subject', help='subject of the status email', dest='emailSubj',
-                          default="[Multi-Cloud Mirror] Script Run at %s" % (str(datetime.datetime.now())))
-      parser.add_argument('--tmpdir', dest='tmpDir',
-                          help='temporary directory used for writing when sending from cf to s3', default='/tmp')
       parser.add_argument('--debug', dest='debug', default=False, help='turn on debug output')
       parser.add_argument('--delete', dest='delete', default=False, help='delete destination files that do not exist in source')
       parser.add_argument('--maxdelete', dest='maxFileDeletion',type=int, default=10, help='max number of files that can be deleted (-1 for unlimited)')
