@@ -67,13 +67,10 @@ def connectToClouds():
 def copyToS3(srcBucketName, myKeyName, destBucketName):
    """
    Copy files to S3 from CF, given a source container and key,
-   and a destination bucket and temporary file for local storage
+   and a destination bucket via a byte stream.
    """
-   # because of the way S3 and boto work, we have to save to a local file first, then upload to Cloud Files
-   # note that maximum file size (as of this writing) for Cloud Files is 5GB, and we expect 6+GB free on the drive
    (s3Conn, cfConn) = connectToClouds()
    file = cfConn.get_container(srcBucketName).get_object(myKeyName)
-
    nf = io.BytesIO(file.read())
    bucket = s3Conn.Bucket(destBucketName)
    object_upload = bucket.Object(s3KeyName)
