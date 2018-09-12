@@ -19,7 +19,6 @@ versa.
 import boto3
 import boto
 import cloudfiles
-import smtplib
 import os
 import io
 import sys
