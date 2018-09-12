@@ -180,6 +180,7 @@ class MultiCloudMirror:
       return(srcService, srcBucketName, destService, destBucketName, serviceError)
 
    def get_all_objects(self, cfBucketName, cfList, marker=None):
+      """Returns a list of file objects from a given container, recursively collected"""
       objects = self.cfConn.get_container(cfBucketName).get_objects(limit=self.CF_MAX_OBJECTS_IN_LIST, marker=marker)
       cfList.extend(objects)
       if len(objects) == self.CF_MAX_OBJECTS_IN_LIST:
@@ -316,8 +317,10 @@ class MultiCloudMirror:
                       % (self.emailDest, self.emailSrc, self.emailMsg), self.LOG_DEBUG)
 
    def get_non_empty_containers(self, containers, non_empty_containers_list):
+      """
+      Returns a list of names of non-empty containers, recursively collected
+      """
       [non_empty_containers_list.append(c['name']) for c in containers if c['bytes'] != 0]
-      #10000 is the default/max size for a response
       if len(containers) == self.CF_MAX_OBJECTS_IN_LIST:
          next_batch_containers = self.cfConn.list_containers_info(marker=containers[-1]['name'], limit=self.CF_MAX_OBJECTS_IN_LIST)
          return self.get_non_empty_containers(next_batch_containers, non_empty_containers_list)
