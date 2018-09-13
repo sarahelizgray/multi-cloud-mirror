@@ -292,17 +292,12 @@ class MultiCloudMirror:
 #######################################################################
 if __name__ == '__main__':
    try:
-      parser = argparse.ArgumentParser(description='Multi-Cloud Mirror Script')
       general_config = ConfigParser.ConfigParser()
       general_config.read(os.path.join(os.path.dirname(__file__), 'setup.cfg'))
       numProcesses = general_config.get('OPTIONS','numProcesses')
       maxFileSize = general_config.get('OPTIONS','maxFileSize')
       debug = general_config.get('OPTIONS', 'debug')
       aws_destination_bucket = general_config.get('OPTIONS', 'aws_destination_bucket')
-      parser.add_argument('sync', metavar='"s3://bucket->cf://container"', nargs='+',
-                          help='a synchronization scenario, of the form "s3://bucket->cf://container" or "cf://container->s3://bucket"')
-      args = parser.parse_args()
-
       mcm = MultiCloudMirror( aws_destination_bucket,
                               int(numProcesses),
                               int(maxFileSize),
