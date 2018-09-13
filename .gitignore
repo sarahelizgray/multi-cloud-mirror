@@ -1,3 +1,3 @@
 env/
 *.pyc
-rackspace.cfg
+cloud_providers.cfg
