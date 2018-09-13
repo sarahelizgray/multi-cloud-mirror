@@ -115,29 +115,8 @@ class MultiCloudMirror:
       """
       if level >= 0:
          if self.debug: print msg
-         if level >= 1:
-            self.emailMsg += msg + "\n"
-
-
-   def getScenarioDetails(self,scenario):
-      """
-      Take a scenario input and break it into component pieces; log error
-      """
-      [fromBucket, toBucket] = scenario.split('->')
-      srcService = fromBucket[:2].lower()
-      destService = toBucket[:2].lower()
-      srcBucketName  = fromBucket[5:]
-      destBucketName = toBucket[5:]
-      serviceError = None
-      # Validate Inputs
-      if srcService not in ['cf','s3']:
-         serviceError ="Source service not recognized."
-      elif destService not in ['cf','s3']:
-         serviceError ="Destination service not recognized."
-      elif srcService == destService:
-         serviceError ="Same-cloud mirroring not supported."
-      self.logItem("\nScenario: %s; (from: %s in %s , to: %s in %s)" % (scenario, srcBucketName, srcService, destBucketName, destService), self.LOG_INFO)
-      return(srcService, srcBucketName, destService, destBucketName, serviceError)
+         # if level >= 1:
+          #TODO put in file logging here
 
    def get_all_objects(self, cfBucketName, cfList, marker=None):
       """Returns a list of file objects from a given container, recursively collected"""
@@ -274,7 +253,10 @@ class MultiCloudMirror:
          raise
       # Cycle Through Requested Synchronizations
       for scenario in self.sync:
-         [srcService, srcBucketName, destService, destBucketName, serviceError] = self.getScenarioDetails(scenario)
+         srcService = 'cf'
+         srcBucketName = 'bogus_value'
+         destService = 's3'
+         destBucketName = aws_destination_bucket
 
          #collect all the non-empty containers
          first_batch_containers = self.cfConn.list_containers_info()
@@ -285,9 +267,6 @@ class MultiCloudMirror:
          # reestablish connection here to avoid the timeout?
             (self.s3Conn, self.cfConn) = connectToClouds()
             self.logItem("transferring bucket " + srcBucketName, self.LOG_INFO)
-            if serviceError is not None:
-               self.logItem(serviceError, self.LOG_WARN)
-               continue
             # Connect to the proper buckets and retrieve file lists
             try:
                self.connectToBuckets(srcService, srcBucketName, destBucketName)
@@ -314,15 +293,20 @@ class MultiCloudMirror:
 if __name__ == '__main__':
    try:
       parser = argparse.ArgumentParser(description='Multi-Cloud Mirror Script')
-      parser.add_argument('--process', dest='numProcesses',type=int, default=4,
-                          help='number of simultaneous file upload threads to run')
-      parser.add_argument('--maxsize', dest='maxFileSize',type=int, default=5368709120,
-                          help='maximium file size to sync, in bytes (files larger than this size will be skipped)')
-      parser.add_argument('--debug', dest='debug', default=False, help='turn on debug output')
+      general_config = ConfigParser.ConfigParser()
+      general_config.read(os.path.join(os.path.dirname(__file__), 'setup.cfg'))
+      numProcesses = general_config.get('OPTIONS','numProcesses')
+      maxFileSize = general_config.get('OPTIONS','maxFileSize')
+      debug = general_config.get('OPTIONS', 'debug')
+      aws_destination_bucket = general_config.get('OPTIONS', 'aws_destination_bucket')
       parser.add_argument('sync', metavar='"s3://bucket->cf://container"', nargs='+',
                           help='a synchronization scenario, of the form "s3://bucket->cf://container" or "cf://container->s3://bucket"')
       args = parser.parse_args()
-      mcm = MultiCloudMirror(args.sync, args.numProcesses, args.maxFileSize, args.debug)
+
+      mcm = MultiCloudMirror( aws_destination_bucket,
+                              int(numProcesses),
+                              int(maxFileSize),
+                              bool(debug))
       mcm.run()
    except MultiCloudMirrorException as err:
       print "Error from MultiCloudMirror: %s" % (str(err))
