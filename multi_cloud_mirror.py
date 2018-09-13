@@ -50,7 +50,7 @@ def connectToClouds():
       s3Conn = session.resource('s3')
       ## the cloud files library doesn't automatically read from a file, so we handle that here:
       cfConfig = ConfigParser.ConfigParser()
-      cfConfig.read('/Users/sarahgray/git/multi-cloud-mirror/rackspace.cfg')
+      cfConfig.read(os.path.join(os.path.dirname(__file__), 'rackspace.cfg'))
       cfConn = cloudfiles.get_connection(cfConfig.get('CREDENTIALS','username'), cfConfig.get('CREDENTIALS','api_key'))
    except (NoSectionError, NoOptionError, MissingSectionHeaderError, ParsingError), err:
       raise MultiCloudMirrorException("Error in reading Cloud Files configuration file (/etc/cloudfiles.cfg): %s" % (err))
