@@ -31,6 +31,7 @@ from cloudfiles.errors import (ResponseError, NoSuchContainer, InvalidContainerN
                                ContainerNotPublic, AuthenticationFailed, AuthenticationError,
                                NoSuchObject, InvalidObjectName, InvalidMetaName, InvalidMetaValue,
                                InvalidObjectSize, IncompleteSend)
+import ConfigParser
 from ConfigParser import NoSectionError, NoOptionError, MissingSectionHeaderError, ParsingError
 from subprocess import Popen, PIPE
 
@@ -49,8 +50,8 @@ def connectToClouds():
       s3Conn = session.resource('s3')
       ## the cloud files library doesn't automatically read from a file, so we handle that here:
       cfConfig = ConfigParser.ConfigParser()
-      cfConfig.read('/Users/sarahgray/cloudfiles.cfg')
-      cfConn = cloudfiles.get_connection(cfConfig.get('Credentials','username'), cfConfig.get('Credentials','api_key'))
+      cfConfig.read('/Users/sarahgray/git/multi-cloud-mirror/rackspace.cfg')
+      cfConn = cloudfiles.get_connection(cfConfig.get('CREDENTIALS','username'), cfConfig.get('CREDENTIALS','api_key'))
    except (NoSectionError, NoOptionError, MissingSectionHeaderError, ParsingError), err:
       raise MultiCloudMirrorException("Error in reading Cloud Files configuration file (/etc/cloudfiles.cfg): %s" % (err))
    except (S3ResponseError, S3PermissionsError), err:
