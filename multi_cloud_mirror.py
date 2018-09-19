@@ -45,18 +45,15 @@ def connectToClouds():
    s3Conn = None
    cfConn = None
    try:
-      config = ConfigParser.ConfigParser()
-      config.read(os.path.join(os.path.dirname(__file__), 'cloud_providers.cfg'))
       ## boto reads from ~/.aws/credentials profiles
-      session = boto3.Session(aws_access_key_id=config.get('AWS','aws_access_key_id'),
-                              aws_secret_access_key=config.get('AWS','aws_secret_access_key'))
+      session = boto3.Session(profile_name='jwp-webteam')
       s3Conn = session.resource('s3')
       ## the cloud files library doesn't automatically read from a file, so we handle that here:
-
-      cfConn = cloudfiles.get_connection(config.get('RACKSPACE','username'),
-         config.get('RACKSPACE','api_key'))
+      cfConfig = ConfigParser.ConfigParser()
+      cfConfig.read(os.path.join(os.path.dirname(__file__), 'cloud_providers.cfg'))
+      cfConn = cloudfiles.get_connection(cfConfig.get('RACKSPACE','username'), cfConfig.get('RACKSPACE','api_key'))
    except (NoSectionError, NoOptionError, MissingSectionHeaderError, ParsingError), err:
-      raise MultiCloudMirrorException("Error in reading Cloud Files configuration file: %s" % (err))
+      raise MultiCloudMirrorException("Error in reading Cloud Files configuration file (/etc/cloudfiles.cfg): %s" % (err))
    except (S3ResponseError, S3PermissionsError), err:
       raise MultiCloudMirrorException("Error in connecting to S3: [%d] %s" % (err.status, err.reason))
    except (ResponseError, InvalidUrl, AuthenticationFailed, AuthenticationError), err:
@@ -119,7 +116,28 @@ class MultiCloudMirror:
       if level >= 0:
          if self.debug: print msg
          # if level >= 1:
-          #TODO put in file logging here
+         #    self.emailMsg += msg + "\n"
+
+
+   def getScenarioDetails(self,scenario):
+      """
+      Take a scenario input and break it into component pieces; log error
+      """
+      [fromBucket, toBucket] = scenario.split('->')
+      srcService = fromBucket[:2].lower()
+      destService = toBucket[:2].lower()
+      srcBucketName  = fromBucket[5:]
+      destBucketName = toBucket[5:]
+      serviceError = None
+      # Validate Inputs
+      if srcService not in ['cf','s3']:
+         serviceError ="Source service not recognized."
+      elif destService not in ['cf','s3']:
+         serviceError ="Destination service not recognized."
+      elif srcService == destService:
+         serviceError ="Same-cloud mirroring not supported."
+      self.logItem("\nScenario: %s; (from: %s in %s , to: %s in %s)" % (scenario, srcBucketName, srcService, destBucketName, destService), self.LOG_INFO)
+      return(srcService, srcBucketName, destService, destBucketName, serviceError)
 
    def get_all_objects(self, cfBucketName, cfList, marker=None):
       """Returns a list of file objects from a given container, recursively collected"""
@@ -131,11 +149,13 @@ class MultiCloudMirror:
          return cfList
 
    def connectToBuckets(self, srcService, srcBucketName, destBucketName):
+
       """
       Open connections and list files in buckets/containers
       """
       # There's a limit in Cloud Files per listing of objects, so we get the Cloud Files list here
       # (to maximize code reuse)
+
       cfBucketName = destBucketName if srcService == 's3' else srcBucketName
       # Because the cloudfiles.ObjectResults class can't easily be appended to, we make a new list
 
@@ -255,37 +275,42 @@ class MultiCloudMirror:
          self.logItem("MultiCloudMirror error on connect: %s" % (err), self.LOG_CRIT)
          raise
       # Cycle Through Requested Synchronizations
-      for scenario in self.sync:
-         srcService = 'cf'
-         srcBucketName = 'bogus_value'
-         destService = 's3'
-         destBucketName = aws_destination_bucket
+      #[srcService, srcBucketName, destService, destBucketName, serviceError] = self.getScenarioDetails(scenario)
 
-         #collect all the non-empty containers
-         first_batch_containers = self.cfConn.list_containers_info()
-         non_empty_containers = self.get_non_empty_containers(first_batch_containers, [])[97:]
+      srcService = 'cf'
+      srcBucketName = 'bogus_value'
+      destService = 's3'
+      destBucketName = 'jwp-promptworks-dev'
+      serviceError = None
 
-         for srcBucketName in non_empty_containers:
-         #override the passed bucket name and pick up all buckets from rackspace
-         # reestablish connection here to avoid the timeout?
-            (self.s3Conn, self.cfConn) = connectToClouds()
-            self.logItem("transferring bucket " + srcBucketName, self.LOG_INFO)
-            # Connect to the proper buckets and retrieve file lists
-            try:
-               self.connectToBuckets(srcService, srcBucketName, destBucketName)
-            except (S3ResponseError, S3PermissionsError), err:
-               self.logItem("Error in connecting to S3 bucket: [%d] %s" % (err.status, err.reason), self.LOG_WARN)
-               continue
-            except (ResponseError, NoSuchContainer, InvalidContainerName, InvalidUrl, ContainerNotPublic, AuthenticationFailed, AuthenticationError), err:
-               self.logItem("Error in connecting to CF container: %s" % (err), self.LOG_WARN)
-               continue
-            # Iterate through files at the source to see which ones to copy, and put them on the multiprocessing queue:
-            for sKey in self.srcList:
-               self.checkAndCopy(sKey, srcService, srcBucketName, destService, destBucketName)
+      #collect all the non-empty containers
+      first_batch_containers = self.cfConn.list_containers_info()
+      non_empty_containers = self.get_non_empty_containers(first_batch_containers, [])
 
-            self.waitForJobstoFinish()
-            self.logItem("\n\n%s Files were previously mirrored %s Files Copied" % (self.syncCount, self.copyCount), self.LOG_INFO)
-            self.logItem("\n\nMulti-Cloud Mirror Script ended at %s" % (str(datetime.datetime.now())), self.LOG_INFO)
+      for srcBucketName in non_empty_containers:
+      #override the passed bucket name and pick up all buckets from rackspace
+      # reestablish connection here to avoid the timeout?
+         (self.s3Conn, self.cfConn) = connectToClouds()
+         self.logItem("transferring bucket " + srcBucketName, self.LOG_INFO)
+         if serviceError is not None:
+            self.logItem(serviceError, self.LOG_WARN)
+            continue
+         # Connect to the proper buckets and retrieve file lists
+         try:
+            self.connectToBuckets(srcService, srcBucketName, destBucketName)
+         except (S3ResponseError, S3PermissionsError), err:
+            self.logItem("Error in connecting to S3 bucket: [%d] %s" % (err.status, err.reason), self.LOG_WARN)
+            continue
+         except (ResponseError, NoSuchContainer, InvalidContainerName, InvalidUrl, ContainerNotPublic, AuthenticationFailed, AuthenticationError), err:
+            self.logItem("Error in connecting to CF container: %s" % (err), self.LOG_WARN)
+            continue
+         # Iterate through files at the source to see which ones to copy, and put them on the multiprocessing queue:
+         for sKey in self.srcList:
+            self.checkAndCopy(sKey, srcService, srcBucketName, destService, destBucketName)
+
+         self.waitForJobstoFinish()
+         self.logItem("\n\n%s Files were previously mirrored %s Files Copied" % (self.syncCount, self.copyCount), self.LOG_INFO)
+         self.logItem("\n\nMulti-Cloud Mirror Script ended at %s" % (str(datetime.datetime.now())), self.LOG_INFO)
 
 
 
