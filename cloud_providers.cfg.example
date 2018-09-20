@@ -3,5 +3,6 @@ username = # some username
 api_key = # some api key
 
 [AWS]
-aws_access_key_id= #some access key
-aws_secret_access_key= #some secret key
+aws_access_key_id = #some access key
+aws_secret_access_key = #some secret key
+region_name = #some region name

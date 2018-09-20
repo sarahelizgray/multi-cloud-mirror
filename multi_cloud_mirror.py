@@ -46,14 +46,17 @@ def connectToClouds():
    cfConn = None
    try:
       ## boto reads from ~/.aws/credentials profiles
-      session = boto3.Session(profile_name='jwp-webteam')
+
+      config = ConfigParser.ConfigParser()
+      config.read(os.path.join(os.path.dirname(__file__), 'cloud_providers.cfg'))
+      session = boto3.Session(aws_access_key_id=config.get('AWS','aws_access_key_id'),
+                              aws_secret_access_key=config.get('AWS','aws_secret_access_key'),
+                              region_name=config.get('AWS', 'region_name')
       s3Conn = session.resource('s3')
       ## the cloud files library doesn't automatically read from a file, so we handle that here:
-      cfConfig = ConfigParser.ConfigParser()
-      cfConfig.read(os.path.join(os.path.dirname(__file__), 'cloud_providers.cfg'))
-      cfConn = cloudfiles.get_connection(cfConfig.get('RACKSPACE','username'), cfConfig.get('RACKSPACE','api_key'))
+      cfConn = cloudfiles.get_connection(config.get('RACKSPACE','username'), config.get('RACKSPACE','api_key'))
    except (NoSectionError, NoOptionError, MissingSectionHeaderError, ParsingError), err:
-      raise MultiCloudMirrorException("Error in reading Cloud Files configuration file (/etc/cloudfiles.cfg): %s" % (err))
+      raise MultiCloudMirrorException("Error in reading Cloud Files configuration file (cloud_providers.cfg): %s" % (err))
    except (S3ResponseError, S3PermissionsError), err:
       raise MultiCloudMirrorException("Error in connecting to S3: [%d] %s" % (err.status, err.reason))
    except (ResponseError, InvalidUrl, AuthenticationFailed, AuthenticationError), err:
