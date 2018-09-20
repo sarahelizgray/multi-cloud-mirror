@@ -24,7 +24,6 @@ import io
 import sys
 import time
 import datetime
-import argparse
 import multiprocessing
 from boto.exception import S3ResponseError, S3PermissionsError, S3CopyError
 from cloudfiles.errors import (ResponseError, NoSuchContainer, InvalidContainerName, InvalidUrl,
